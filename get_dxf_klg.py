@@ -34,7 +34,7 @@ def get_str_thickness(file_name):
 
 def filling_in_excel(df, wb, first_row=1, first_col=1, ws_title=None, color_pattern=None, extra=None):
     '''
-    Функция заполняет шаблонный лист excel данными из датафрейма.
+    Функция заполняет лист excel данными из датафрейма.
     В качестве параметра (color_pattern) можно передать словарь вида {'паттерн': 'цвет hex'} для
     закрашивания ячеек выбранным цветом, если паттерн подходит.
     Параметры:
@@ -85,16 +85,24 @@ def filling_in_excel(df, wb, first_row=1, first_col=1, ws_title=None, color_patt
             ws[key] = value  # записываем значения в ячейку
 
 
+# def add_note(row):
+    
+
 path = Path('.')
 
 for xls in path.glob('*.xls'):
     df = pd.read_excel(xls)
 
-# паттерн для фильтрации всего, что начинается с буквы
-pattern = '^\w'  # начинается с буквы
+# паттерн для фильтрации всего, что начинается не с буквы
+pattern = '^\w'  # начинается не с буквы
 
 # убираем строки с пропусками
 df.dropna(inplace=True)
+
+
+
+# добавляем в примечания фразу "крой один, гибы зеркально" для исполнений -01
+df['примечание'] = df['Обозначение'].apply(lambda x: "один крой, гибы зеркально" if x[-3:] == '-01' else "")
 
 # убираем "-01" в обозначениях
 df['Обозначение'] = df['Обозначение'].apply(lambda x: x[:-3] if x[-3:] == '-01' else x)
@@ -112,11 +120,18 @@ df['Толщина, мм.'] = df['Толщина, мм.'].apply(lambda x: float(
 # объединяем колонки 'Обозначение' и 'Наименование'
 df['Наименование'] = df['Обозначение'] + df['Наименование']
 
-df = df.groupby('Наименование', as_index=False).agg({'Количество': 'sum', 'Толщина, мм.': 'first'}).rename(columns={'Количество': 'Кол-во, шт.'})
+df = (
+    df.groupby('Наименование', as_index=False)
+        .agg({'Количество': 'sum',
+              'Толщина, мм.': 'first',
+              'примечание': ''.join})
+    .rename(columns={'Количество': 'Кол-во, шт.'})
+    )
+
 df['№'] = df.index + 1
 df['Гибка (да/нет)'] = ''
 df['металл'] = ''
-df['примечание'] = ''
+# df['примечание'] = ''
 df = df[['№', 'Наименование', 'Кол-во, шт.', 'Толщина, мм.', 'Гибка (да/нет)', 'металл', 'примечание']]
 
 # сегодняшняя дата
@@ -130,17 +145,20 @@ excel_path = path / (application + '.xlsx')
 
 wb = openpyxl.Workbook()                   # создаём пустой файл Excel
 ws = wb.active                             # лист
-ws.column_dimensions['A'].width = 4.67     # устанавливаем ширину ячеек (в ещиницах шрифта)
+ws.column_dimensions['A'].width = 4.67     # устанавливаем ширину ячеек (в единицах шрифта)
 ws.column_dimensions['B'].width = 63.89
 ws.column_dimensions['C'].width = 8.67
 ws.column_dimensions['D'].width = 9.89
 ws.column_dimensions['E'].width = 9.33
 ws.column_dimensions['F'].width = 9.11
-ws.column_dimensions['G'].width = 22.78
+ws.column_dimensions['G'].width = 25.11
 
 ws.cell(row= 1, column = 7).value = 'Савин'                  # присваиваем значение ячейкам
 ws.cell(row= 2, column = 2).value = application              # графу заявку заполняем названием родительской директории
 ws.cell(row= 2, column = 2).font = Font(size=14, bold=True)  # устанавливаем размер шрифта ячейки, делаем шрифт полужирным
+
+for i in range(1, 8):
+    ws.cell(row= 3, column = i).font = Font(bold=True)       #для всей строки №3 делаем шрифт полужирным
 
 
 filling_in_excel(df, wb, first_row=3, first_col=1) # заполняем Excel данными из df с помощью функции
